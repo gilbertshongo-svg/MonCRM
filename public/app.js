@@ -316,15 +316,44 @@ function renderMessages() {
     </div>
   `).join('');
 
+  const scheduled = [...(DATA.scheduledMessages || [])]
+    .filter(m => m.status === 'pending' || m.status === 'failed')
+    .sort((a, b) => a.sendAt.localeCompare(b.sendAt));
+
   el.innerHTML = `
     <div class="toolbar">
       <div class="field-hint">${DATA.messages.length} message(s) au total, tous contacts confondus</div>
-      <button class="btn" data-action="new-message">+ Nouveau message</button>
+      <div class="toolbar-buttons">
+        <button class="btn secondary" data-action="new-scheduled-message">🕐 Programmer un message</button>
+        <button class="btn" data-action="new-message">+ Nouveau message</button>
+      </div>
     </div>
+
+    ${scheduled.length ? `
+    <div class="panel">
+      <div class="panel-head"><h2>Messages programmés (${scheduled.length})</h2></div>
+      <div class="mini-list">${scheduled.map(scheduledRowHtml).join('')}</div>
+    </div>
+    ` : ''}
+
     <div class="panel">
       ${list.length ? groupsHtml : emptyState('💬', 'Aucun message', term ? 'Aucun résultat pour votre recherche.' : "Enregistrez vos échanges (e-mail, appel, SMS, WhatsApp…) pour tout retrouver au même endroit.", 'new-message', '+ Nouveau message')}
     </div>
   `;
+}
+
+function scheduledRowHtml(m) {
+  const c = findContact(m.contactId);
+  const ch = channelInfo(m.channel);
+  const isFailed = m.status === 'failed';
+  return `<div class="mini-row">
+    <div>
+      <div class="primary">${c ? escapeHtml(contactFullName(c)) : 'Contact supprimé'} <span class="badge ${ch.css}">${ch.label}</span></div>
+      <div class="secondary">${escapeHtml(truncate(m.content, 70))} · Envoi prévu : ${fmtDateTime(m.sendAt)}</div>
+      ${isFailed ? `<div class="secondary" style="color:var(--status-critical)">Échec : ${escapeHtml(m.error || '')}</div>` : ''}
+    </div>
+    <button class="btn secondary small" data-action="cancel-scheduled-message" data-id="${m.id}">${isFailed ? 'Retirer' : 'Annuler'}</button>
+  </div>`;
 }
 
 function groupMessagesByDay(list) {
@@ -483,6 +512,83 @@ function openAssignMessageModal(id) {
       return true;
     },
   });
+}
+
+function scheduleMessageFormHtml() {
+  const contactOptions = DATA.contacts.map(c => `<option value="${c.id}">${escapeHtml(contactFullName(c))} — ${escapeHtml(c.email || c.phone || 'aucun contact')}</option>`).join('');
+  // Par défaut : dans 1 heure, arrondi à la minute, au format attendu par un input datetime-local.
+  const defaultSendAt = addHours(1);
+  return `
+    <div class="field"><label>Contact *</label><select name="contactId" id="scheduleContactId" required><option value="">— Choisir —</option>${contactOptions}</select></div>
+    <div class="field"><label>Canal *</label>
+      <select name="channel" required>
+        <option value="email">E-mail</option>
+        <option value="whatsapp">WhatsApp</option>
+      </select>
+    </div>
+    <div class="field" id="scheduleSubjectField"><label>Sujet (e-mail)</label><input type="text" name="subject"></div>
+    <div class="field"><label>Message *</label><textarea name="content" required></textarea></div>
+    <div class="field"><label>Date et heure d'envoi *</label><input type="datetime-local" name="sendAt" required value="${defaultSendAt}" min="${addHours(0)}"></div>
+    <div class="field-hint">Le message sera envoyé automatiquement à l'heure choisie, même si vous n'êtes pas connecté·e à ce moment-là.</div>
+  `;
+}
+
+function openScheduleMessageModal() {
+  if (!DATA.contacts.length) { showToast('Ajoutez au moins un contact avant de programmer un message.'); return; }
+  openModal({
+    title: 'Programmer un message',
+    bodyHtml: scheduleMessageFormHtml(),
+    submitLabel: 'Programmer',
+    onSubmit: (fd) => {
+      const payload = {
+        contactId: fd.get('contactId'),
+        channel: fd.get('channel'),
+        subject: fd.get('subject')?.trim() || '',
+        content: fd.get('content').trim(),
+        sendAt: fd.get('sendAt'),
+      };
+      if (!payload.contactId || !payload.content || !payload.sendAt) return false;
+      scheduleMessage(payload);
+      return true;
+    },
+    afterMount: (modalEl) => {
+      const channelSel = modalEl.querySelector('select[name="channel"]');
+      const subjectField = modalEl.querySelector('#scheduleSubjectField');
+      const toggleSubject = () => { subjectField.hidden = channelSel.value !== 'email'; };
+      channelSel.addEventListener('change', toggleSubject);
+      toggleSubject();
+    },
+  });
+}
+
+async function scheduleMessage(payload) {
+  try {
+    const res = await fetch('/api/messages/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    if (!res.ok) { showToast(body.error || 'Échec de la programmation.'); return; }
+    DATA = body.data;
+    renderCurrentView();
+    showToast('Message programmé.');
+  } catch (e) {
+    showToast('Serveur injoignable — message non programmé.');
+  }
+}
+
+async function cancelScheduledMessage(id) {
+  try {
+    const res = await fetch(`/api/messages/schedule/${id}/cancel`, { method: 'POST' });
+    const body = await res.json();
+    if (!res.ok) { showToast(body.error || 'Échec.'); return; }
+    DATA = body.data;
+    renderCurrentView();
+    showToast('Message retiré de la programmation.');
+  } catch (e) {
+    showToast('Serveur injoignable.');
+  }
 }
 
 /* ============================================================
@@ -1138,6 +1244,8 @@ document.addEventListener('click', (e) => {
     case 'edit-message': openMessageModal(id); break;
     case 'delete-message': deleteMessage(id); break;
     case 'assign-message': openAssignMessageModal(id); break;
+    case 'new-scheduled-message': openScheduleMessageModal(); break;
+    case 'cancel-scheduled-message': cancelScheduledMessage(id); break;
 
     case 'connect-gmail': window.location.href = '/auth/google'; break;
     case 'disconnect-gmail': disconnectGmail(); break;

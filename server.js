@@ -7,6 +7,7 @@ const store = require('./lib/store');
 const gmail = require('./lib/gmail');
 const whatsapp = require('./lib/whatsapp');
 const auth = require('./lib/auth');
+const scheduler = require('./lib/scheduler');
 
 const app = express();
 app.set('trust proxy', true);
@@ -173,6 +174,48 @@ app.post('/api/messages/send-whatsapp', auth.requireAuth, async (req, res) => {
 });
 
 /* ============================================================
+   Messages programmés (envoi automatique différé)
+   ============================================================ */
+app.post('/api/messages/schedule', auth.requireAuth, async (req, res) => {
+  const { contactId, channel, subject, content, sendAt } = req.body;
+  const data = store.getData();
+  const contact = data.contacts.find((c) => c.id === contactId);
+  if (!contact) return res.status(400).json({ error: 'Contact introuvable.' });
+  if (channel !== 'email' && channel !== 'whatsapp') return res.status(400).json({ error: 'Canal invalide (e-mail ou WhatsApp uniquement).' });
+  if (channel === 'email' && !contact.email) return res.status(400).json({ error: "Ce contact n'a pas d'adresse e-mail." });
+  if (channel === 'whatsapp' && !contact.phone) return res.status(400).json({ error: "Ce contact n'a pas de numéro de téléphone." });
+  if (!content || !content.trim()) return res.status(400).json({ error: 'Le message ne peut pas être vide.' });
+  const sendDate = new Date(sendAt);
+  if (isNaN(sendDate) || sendDate.getTime() <= Date.now()) {
+    return res.status(400).json({ error: "La date d'envoi doit être dans le futur." });
+  }
+
+  const item = {
+    id: 'sch-' + Date.now() + '-' + Math.random().toString(16).slice(2, 8),
+    contactId,
+    channel,
+    subject: subject || '',
+    content: content.trim(),
+    sendAt: sendDate.toISOString(),
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
+  await store.mutate((d) => { d.scheduledMessages.push(item); });
+  res.json({ ok: true, data: store.getData() });
+});
+
+app.post('/api/messages/schedule/:id/cancel', auth.requireAuth, async (req, res) => {
+  const data = store.getData();
+  const item = data.scheduledMessages.find((m) => m.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Message programmé introuvable.' });
+  if (item.status === 'sent') return res.status(400).json({ error: 'Ce message a déjà été envoyé.' });
+  await store.mutate((d) => {
+    d.scheduledMessages = d.scheduledMessages.filter((m) => m.id !== req.params.id);
+  });
+  res.json({ ok: true, data: store.getData() });
+});
+
+/* ============================================================
    WhatsApp (Meta Cloud API) — webhook
    ============================================================ */
 app.get('/webhook/whatsapp', (req, res) => {
@@ -218,7 +261,16 @@ setInterval(() => {
   gmail.pollNewEmails().catch((e) => console.error('Erreur de synchronisation Gmail', e));
 }, POLL_INTERVAL_MS);
 
+/* ============================================================
+   Envoi des messages programmés arrivés à échéance
+   ============================================================ */
+const SCHEDULE_CHECK_INTERVAL_MS = 60 * 1000;
+setInterval(() => {
+  scheduler.sendDueMessages().catch((e) => console.error('Erreur d\'envoi des messages programmés', e));
+}, SCHEDULE_CHECK_INTERVAL_MS);
+
 app.listen(PORT, () => {
   console.log(`MonCRM en écoute sur le port ${PORT}`);
   gmail.pollNewEmails().catch((e) => console.error('Erreur de synchronisation Gmail (démarrage)', e));
+  scheduler.sendDueMessages().catch((e) => console.error('Erreur d\'envoi des messages programmés (démarrage)', e));
 });

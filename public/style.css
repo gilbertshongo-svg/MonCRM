@@ -214,6 +214,7 @@ tbody tr:hover{ background: var(--gridline); }
 .empty-state p{ margin:4px 0 16px; font-size:13.5px; }
 
 .toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.toolbar-buttons{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .filter-row{ display:flex; gap:8px; flex-wrap:wrap; }
 select.filter, input.filter{
   padding:8px 10px; border-radius: var(--radius-sm); border:1px solid var(--border);
@@ -288,6 +289,7 @@ select.filter, input.filter{
 .modal-body{ padding:18px 20px; display:flex; flex-direction:column; gap:14px; }
 .modal-foot{ padding:14px 20px; border-top:1px solid var(--gridline); display:flex; justify-content:flex-end; gap:8px; }
 .field{ display:flex; flex-direction:column; gap:5px; }
+.field[hidden]{ display:none; }
 .field label{ font-size:12.5px; font-weight:600; color: var(--text-secondary); }
 .field input, .field select, .field textarea{
   padding:9px 11px; border-radius: var(--radius-sm); border:1px solid var(--border);
