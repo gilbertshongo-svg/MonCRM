@@ -7,7 +7,9 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app">
+<div id="authGate" class="auth-gate" hidden></div>
+
+<div class="app" id="appRoot" hidden>
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
@@ -48,6 +50,7 @@
     <div class="sidebar-footer">
       <button id="btnExport" class="ghost-btn" title="Exporter toutes les données en JSON">Exporter</button>
       <button id="btnImport" class="ghost-btn" title="Importer des données JSON">Importer</button>
+      <button id="btnLogout" class="ghost-btn" title="Se déconnecter">Déconnexion</button>
       <input type="file" id="fileImport" accept="application/json" hidden>
     </div>
   </aside>

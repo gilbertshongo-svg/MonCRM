@@ -6,6 +6,7 @@ const cors = require('cors');
 const store = require('./lib/store');
 const gmail = require('./lib/gmail');
 const whatsapp = require('./lib/whatsapp');
+const auth = require('./lib/auth');
 
 const app = express();
 app.set('trust proxy', true);
@@ -15,13 +16,46 @@ app.use(express.json({ limit: '2mb' }));
 const PORT = process.env.PORT || 3000;
 
 /* ============================================================
-   Données du CRM
+   Authentification (compte unique, protège toutes vos données)
    ============================================================ */
-app.get('/api/data', (req, res) => {
+app.get('/api/auth/status', (req, res) => {
+  const session = auth.getSessionFromRequest(req);
+  res.json({ hasAccount: auth.hasAccount(), authenticated: Boolean(session), email: session?.email || null });
+});
+
+app.post('/api/auth/setup', (req, res) => {
+  if (auth.hasAccount()) return res.status(400).json({ error: 'Un compte existe déjà.' });
+  const { email, password } = req.body;
+  if (!email || !password || password.length < 8) {
+    return res.status(400).json({ error: 'E-mail et mot de passe (8 caractères minimum) requis.' });
+  }
+  auth.createAccount(email, password);
+  auth.setSessionCookie(res, email.trim().toLowerCase());
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!auth.verifyCredentials(email, password)) {
+    return res.status(401).json({ error: 'E-mail ou mot de passe incorrect.' });
+  }
+  auth.setSessionCookie(res, String(email).trim().toLowerCase());
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  auth.clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+/* ============================================================
+   Données du CRM (protégées : authentification requise)
+   ============================================================ */
+app.get('/api/data', auth.requireAuth, (req, res) => {
   res.json(store.getData());
 });
 
-app.put('/api/data', async (req, res) => {
+app.put('/api/data', auth.requireAuth, async (req, res) => {
   try {
     await store.setData(req.body);
     res.json({ ok: true });
@@ -33,7 +67,7 @@ app.put('/api/data', async (req, res) => {
 /* ============================================================
    Intégrations — statut
    ============================================================ */
-app.get('/api/integrations/status', (req, res) => {
+app.get('/api/integrations/status', auth.requireAuth, (req, res) => {
   res.json({
     gmail: gmail.getStatus(),
     whatsapp: whatsapp.getStatus(),
@@ -44,6 +78,7 @@ app.get('/api/integrations/status', (req, res) => {
    Gmail — connexion OAuth
    ============================================================ */
 app.get('/auth/google', (req, res) => {
+  if (!auth.getSessionFromRequest(req)) return res.redirect('/');
   if (!gmail.isConfigured()) return res.status(400).send("Gmail n'est pas configuré côté serveur (variables GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET manquantes).");
   res.redirect(gmail.getAuthUrl());
 });
@@ -58,7 +93,7 @@ app.get('/auth/google/callback', async (req, res) => {
   }
 });
 
-app.post('/api/integrations/gmail/disconnect', (req, res) => {
+app.post('/api/integrations/gmail/disconnect', auth.requireAuth, (req, res) => {
   gmail.disconnect();
   res.json({ ok: true });
 });
@@ -66,7 +101,7 @@ app.post('/api/integrations/gmail/disconnect', (req, res) => {
 /* ============================================================
    Envoi de messages réels (e-mail / WhatsApp)
    ============================================================ */
-app.post('/api/messages/send-email', async (req, res) => {
+app.post('/api/messages/send-email', auth.requireAuth, async (req, res) => {
   const { contactId, subject, content } = req.body;
   const data = store.getData();
   const contact = data.contacts.find((c) => c.id === contactId);
@@ -92,7 +127,7 @@ app.post('/api/messages/send-email', async (req, res) => {
   }
 });
 
-app.post('/api/messages/send-whatsapp', async (req, res) => {
+app.post('/api/messages/send-whatsapp', auth.requireAuth, async (req, res) => {
   const { contactId, content } = req.body;
   const data = store.getData();
   const contact = data.contacts.find((c) => c.id === contactId);
@@ -135,7 +170,7 @@ app.post('/webhook/whatsapp', (req, res) => {
 /* ============================================================
    Assigner un message à un contact (pour les expéditeurs inconnus)
    ============================================================ */
-app.post('/api/messages/:id/assign', async (req, res) => {
+app.post('/api/messages/:id/assign', auth.requireAuth, async (req, res) => {
   const { contactId } = req.body;
   const data = store.getData();
   const msg = data.messages.find((m) => m.id === req.params.id);

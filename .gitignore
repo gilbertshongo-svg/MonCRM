@@ -2,3 +2,4 @@ node_modules/
 .env
 data/data.json
 data/tokens.json
+data/auth.json

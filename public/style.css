@@ -85,6 +85,7 @@ svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; 
 
 /* ===== Layout ===== */
 .app{ display:flex; min-height:100vh; }
+.app[hidden]{ display:none; }
 
 .sidebar{
   width: var(--sidebar-w);
@@ -303,6 +304,23 @@ select.filter, input.filter{
 }
 #view-integrations .panel + .panel{ margin-top:0; }
 #view-integrations .btn{ margin-top:10px; }
+
+/* ===== Écran de connexion ===== */
+.auth-gate{
+  position:fixed; inset:0; z-index:300; display:flex; align-items:center; justify-content:center;
+  background: var(--page-plane); padding:20px;
+}
+.auth-gate[hidden]{ display:none; }
+.auth-card{
+  width:100%; max-width:380px; background: var(--surface-1); border:1px solid var(--border); border-radius: var(--radius);
+  padding: 28px 26px; box-shadow: var(--shadow);
+}
+.auth-card .brand{ display:flex; align-items:center; gap:10px; margin-bottom:18px; padding:0; }
+.auth-card h2{ font-size:18px; margin:0 0 6px; }
+.auth-card p.lead{ font-size:13px; color: var(--text-secondary); margin:0 0 20px; line-height:1.5; }
+.auth-card form{ display:flex; flex-direction:column; gap:14px; }
+.auth-card .btn{ width:100%; justify-content:center; margin-top:4px; }
+.auth-card .auth-error{ font-size:12.5px; color: var(--status-critical); }
 
 /* ===== Toast ===== */
 .toast{

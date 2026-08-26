@@ -48,6 +48,7 @@ let integrationsStatus = { gmail: {}, whatsapp: {} };
 /* ---------- Persistence (via l'API du serveur) ---------- */
 async function loadData() {
   const res = await fetch('/api/data');
+  if (res.status === 401) { showAuthGate(); throw new Error('Session expirée.'); }
   if (!res.ok) throw new Error('Impossible de charger les données.');
   return res.json();
 }
@@ -1219,14 +1220,94 @@ function handleOAuthRedirectFlag() {
   }
 }
 
-/* ---------- Init ---------- */
-(async function init() {
+/* ============================================================
+   Authentification — écran de connexion / création de compte
+   ============================================================ */
+function showAuthGate() {
+  document.getElementById('appRoot').hidden = true;
+  document.getElementById('authGate').hidden = false;
+}
+
+function hideAuthGate() {
+  document.getElementById('authGate').hidden = true;
+  document.getElementById('appRoot').hidden = false;
+}
+
+function renderAuthGate(mode, errorMsg) {
+  const el = document.getElementById('authGate');
+  const isSetup = mode === 'setup';
+  el.innerHTML = `
+    <div class="auth-card">
+      <div class="brand"><span class="brand-mark">M</span><span class="brand-name">MonCRM</span></div>
+      <h2>${isSetup ? 'Créer votre accès' : 'Connexion'}</h2>
+      <p class="lead">${isSetup
+        ? "Vos données (contacts, messages, e-mails, WhatsApp…) sont désormais protégées par un compte. Choisissez un e-mail et un mot de passe pour sécuriser cet accès — vous seul(e) pourrez vous connecter."
+        : "Entrez vos identifiants pour accéder à votre CRM."}</p>
+      <form id="authForm">
+        <div class="field"><label>E-mail</label><input type="email" name="email" required autocomplete="username"></div>
+        <div class="field"><label>Mot de passe</label><input type="password" name="password" required minlength="8" autocomplete="${isSetup ? 'new-password' : 'current-password'}"></div>
+        ${errorMsg ? `<div class="auth-error">${escapeHtml(errorMsg)}</div>` : ''}
+        <button type="submit" class="btn">${isSetup ? 'Créer mon accès' : 'Se connecter'}</button>
+      </form>
+    </div>
+  `;
+  document.getElementById('authForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = { email: fd.get('email').trim(), password: fd.get('password') };
+    try {
+      const res = await fetch(isSetup ? '/api/auth/setup' : '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) { renderAuthGate(mode, body.error || 'Échec.'); return; }
+      hideAuthGate();
+      startApp();
+    } catch (err) {
+      renderAuthGate(mode, 'Serveur injoignable. Réessayez.');
+    }
+  });
+  const firstInput = el.querySelector('input');
+  if (firstInput) setTimeout(() => firstInput.focus(), 30);
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  window.location.reload();
+}
+
+/* ---------- Démarrage de l'application (une fois authentifié) ---------- */
+async function startApp() {
   try {
     DATA = await loadData();
   } catch (e) {
-    showToast('Impossible de charger les données depuis le serveur.');
+    return; // loadData a déjà géré la redirection si la session a expiré
   }
   handleOAuthRedirectFlag();
   setView('dashboard');
   setInterval(refreshFromServer, REFRESH_INTERVAL_MS);
+}
+
+/* ---------- Init : vérifie l'authentification avant tout ---------- */
+(async function initAuth() {
+  document.getElementById('btnLogout').addEventListener('click', logout);
+  try {
+    const res = await fetch('/api/auth/status');
+    const status = await res.json();
+    if (!status.hasAccount) {
+      renderAuthGate('setup');
+      showAuthGate();
+    } else if (!status.authenticated) {
+      renderAuthGate('login');
+      showAuthGate();
+    } else {
+      hideAuthGate();
+      startApp();
+    }
+  } catch (e) {
+    renderAuthGate('login', 'Impossible de contacter le serveur.');
+    showAuthGate();
+  }
 })();
