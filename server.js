@@ -20,7 +20,12 @@ const PORT = process.env.PORT || 3000;
    ============================================================ */
 app.get('/api/auth/status', (req, res) => {
   const session = auth.getSessionFromRequest(req);
-  res.json({ hasAccount: auth.hasAccount(), authenticated: Boolean(session), email: session?.email || null });
+  res.json({
+    hasAccount: auth.hasAccount(),
+    authenticated: Boolean(session),
+    email: session?.email || null,
+    resetAvailable: auth.isResetConfigured(),
+  });
 });
 
 app.post('/api/auth/setup', (req, res) => {
@@ -46,6 +51,20 @@ app.post('/api/auth/login', (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   auth.clearSessionCookie(res);
   res.json({ ok: true });
+});
+
+app.post('/api/auth/reset', (req, res) => {
+  const { email, password, resetToken } = req.body;
+  if (!email || !password || password.length < 8) {
+    return res.status(400).json({ error: 'E-mail et mot de passe (8 caractères minimum) requis.' });
+  }
+  try {
+    auth.resetAccount(email, password, resetToken);
+    auth.setSessionCookie(res, String(email).trim().toLowerCase());
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 /* ============================================================

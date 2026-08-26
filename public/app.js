@@ -1233,9 +1233,53 @@ function hideAuthGate() {
   document.getElementById('appRoot').hidden = false;
 }
 
+let authResetAvailable = false;
+
 function renderAuthGate(mode, errorMsg) {
   const el = document.getElementById('authGate');
   const isSetup = mode === 'setup';
+  const isReset = mode === 'reset';
+
+  if (isReset) {
+    el.innerHTML = `
+      <div class="auth-card">
+        <div class="brand"><span class="brand-mark">M</span><span class="brand-name">MonCRM</span></div>
+        <h2>Réinitialiser l'accès</h2>
+        <p class="lead">Entrez la clé de récupération (définie dans les variables d'environnement de votre serveur, <code>ADMIN_RESET_TOKEN</code>) pour redéfinir votre e-mail et mot de passe.</p>
+        <form id="authForm">
+          <div class="field"><label>Clé de récupération</label><input type="text" name="resetToken" required autocomplete="off"></div>
+          <div class="field"><label>E-mail</label><input type="email" name="email" required autocomplete="username"></div>
+          <div class="field"><label>Nouveau mot de passe</label><input type="password" name="password" required minlength="8" autocomplete="new-password"></div>
+          ${errorMsg ? `<div class="auth-error">${escapeHtml(errorMsg)}</div>` : ''}
+          <button type="submit" class="btn">Réinitialiser et me connecter</button>
+        </form>
+        <p class="auth-switch"><button type="button" class="link-btn" id="toggleAuthMode">Retour à la connexion</button></p>
+      </div>
+    `;
+    document.getElementById('toggleAuthMode').addEventListener('click', () => renderAuthGate('login'));
+    document.getElementById('authForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = { email: fd.get('email').trim(), password: fd.get('password'), resetToken: fd.get('resetToken').trim() };
+      try {
+        const res = await fetch('/api/auth/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        if (!res.ok) { renderAuthGate('reset', body.error || 'Échec.'); return; }
+        hideAuthGate();
+        startApp();
+      } catch (err) {
+        renderAuthGate('reset', 'Serveur injoignable. Réessayez.');
+      }
+    });
+    const firstInputReset = el.querySelector('input');
+    if (firstInputReset) setTimeout(() => firstInputReset.focus(), 30);
+    return;
+  }
+
   el.innerHTML = `
     <div class="auth-card">
       <div class="brand"><span class="brand-mark">M</span><span class="brand-name">MonCRM</span></div>
@@ -1253,11 +1297,14 @@ function renderAuthGate(mode, errorMsg) {
         ${isSetup ? 'Vous avez déjà un compte ?' : "Pas encore de compte ?"}
         <button type="button" class="link-btn" id="toggleAuthMode">${isSetup ? 'Se connecter' : 'Créer un accès'}</button>
       </p>
+      ${!isSetup && authResetAvailable ? `<p class="auth-switch"><button type="button" class="link-btn" id="forgotPassword">Mot de passe oublié ?</button></p>` : ''}
     </div>
   `;
   document.getElementById('toggleAuthMode').addEventListener('click', () => {
     renderAuthGate(isSetup ? 'login' : 'setup');
   });
+  const forgotBtn = document.getElementById('forgotPassword');
+  if (forgotBtn) forgotBtn.addEventListener('click', () => renderAuthGate('reset'));
   document.getElementById('authForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -1303,6 +1350,7 @@ async function startApp() {
   try {
     const res = await fetch('/api/auth/status');
     const status = await res.json();
+    authResetAvailable = Boolean(status.resetAvailable);
     if (!status.hasAccount) {
       renderAuthGate('setup');
       showAuthGate();
