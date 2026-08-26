@@ -513,6 +513,7 @@ async function renderIntegrations() {
       ` : `
         <p class="confirm-text">Serveur configuré, mais aucun compte Gmail n'est encore connecté.</p>
         <button class="btn small" data-action="connect-gmail">Connecter mon compte Gmail</button>
+        <p class="field-hint">Si Google affiche « redirect_uri_mismatch », ajoutez exactement cette adresse dans Google Cloud Console (Identifiants → votre ID client OAuth → URI de redirection autorisés) : <code>${escapeHtml(g.redirectUri || '')}</code></p>
       `}
     </div>
 
