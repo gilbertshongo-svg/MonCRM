@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MonCRM — Gestion clients simplifiée</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">M</span>
+      <span class="brand-name">MonCRM</span>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard">
+        <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z"/></svg>
+        Tableau de bord
+      </button>
+      <button class="nav-item" data-view="messages">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+        Messages
+      </button>
+      <button class="nav-item" data-view="contacts">
+        <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5Z"/></svg>
+        Contacts
+      </button>
+      <button class="nav-item" data-view="companies">
+        <svg viewBox="0 0 24 24"><path d="M4 21V4a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v17M4 21h16M14 21v-6h4a1 1 0 0 1 1 1v5M7 7h2M7 11h2M7 15h2"/></svg>
+        Entreprises
+      </button>
+      <button class="nav-item" data-view="pipeline">
+        <svg viewBox="0 0 24 24"><path d="M3 4h18l-7 9v6l-4 2v-8L3 4Z"/></svg>
+        Pipeline
+      </button>
+      <button class="nav-item" data-view="tasks">
+        <svg viewBox="0 0 24 24"><path d="m9 11 3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Tâches
+      </button>
+      <button class="nav-item" data-view="integrations">
+        <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Intégrations
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button id="btnExport" class="ghost-btn" title="Exporter toutes les données en JSON">Exporter</button>
+      <button id="btnImport" class="ghost-btn" title="Importer des données JSON">Importer</button>
+      <input type="file" id="fileImport" accept="application/json" hidden>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <h1 id="viewTitle">Tableau de bord</h1>
+      <div class="topbar-actions">
+        <input type="search" id="globalSearch" placeholder="Rechercher un contact, une entreprise…">
+      </div>
+    </header>
+
+    <section id="view-dashboard" class="view"></section>
+    <section id="view-messages" class="view" hidden></section>
+    <section id="view-contacts" class="view" hidden></section>
+    <section id="view-companies" class="view" hidden></section>
+    <section id="view-pipeline" class="view" hidden></section>
+    <section id="view-tasks" class="view" hidden></section>
+    <section id="view-integrations" class="view" hidden></section>
+  </main>
+</div>
+
+<!-- MODAL ROOT -->
+<div id="modalRoot" class="modal-overlay" hidden>
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
