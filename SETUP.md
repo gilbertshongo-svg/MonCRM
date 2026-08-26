@@ -130,6 +130,7 @@ En contrepartie, Meta impose un mode test au départ.
    | `WHATSAPP_ACCESS_TOKEN` | (étape 2) |
    | `WHATSAPP_PHONE_NUMBER_ID` | (étape 2) |
    | `WHATSAPP_VERIFY_TOKEN` | (étape 2, la chaîne que vous avez inventée) |
+   | `ADMIN_RESET_TOKEN` | Une chaîne secrète inventée par vous — permet de réinitialiser votre mot de passe si vous êtes bloqué·e dehors (garder précieusement) |
 
 6. Cliquez **Create Web Service**. Render construit et démarre le serveur
    (1-2 minutes). Une fois en ligne, copiez l'adresse fournie
@@ -140,12 +141,28 @@ En contrepartie, Meta impose un mode test au départ.
    `https://xxxx.onrender.com/auth/google/callback`. Render redéploie
    automatiquement après un changement de variable.
 
-⚠️ **Important sur le plan gratuit de Render** : le service peut se mettre en
-veille après 15 minutes d'inactivité et redémarrer à la prochaine requête
-(quelques secondes de latence), et le stockage n'est pas garanti après un
-nouveau déploiement. Pour un usage professionnel régulier, envisagez de
-passer au plan payant de Render pour un disque persistant, ou exportez
-régulièrement vos données avec le bouton **Exporter**.
+### Stockage persistant (fortement recommandé)
+
+Par défaut, Render **efface vos données à chaque nouveau déploiement** (le
+disque du conteneur repart à zéro). Pour que vos contacts, messages et
+connexions Gmail/WhatsApp survivent à chaque mise à jour :
+
+1. Dans votre service Render, onglet **Disks** → **Add Disk**.
+2. **Name** : `moncrm-data` (libre) — **Mount Path** : `/var/data` — **Size** :
+   1 Go suffit largement (quelques dizaines de centimes à ~1$/mois selon le
+   tarif Render en vigueur).
+3. Onglet **Environment** → ajoutez la variable :
+
+   | Clé | Valeur |
+   |---|---|
+   | `DATA_DIR` | `/var/data` |
+
+4. **Save Changes** — Render redéploie, cette fois avec un stockage qui
+   persiste réellement entre les mises à jour.
+
+⚠️ Le plan gratuit de Render peut aussi mettre le service en veille après 15
+minutes d'inactivité (redémarrage en quelques secondes à la requête
+suivante) — sans rapport avec le stockage, juste un léger délai occasionnel.
 
 ---
 
