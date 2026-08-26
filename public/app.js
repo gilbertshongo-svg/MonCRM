@@ -1249,8 +1249,15 @@ function renderAuthGate(mode, errorMsg) {
         ${errorMsg ? `<div class="auth-error">${escapeHtml(errorMsg)}</div>` : ''}
         <button type="submit" class="btn">${isSetup ? 'Créer mon accès' : 'Se connecter'}</button>
       </form>
+      <p class="auth-switch">
+        ${isSetup ? 'Vous avez déjà un compte ?' : "Pas encore de compte ?"}
+        <button type="button" class="link-btn" id="toggleAuthMode">${isSetup ? 'Se connecter' : 'Créer un accès'}</button>
+      </p>
     </div>
   `;
+  document.getElementById('toggleAuthMode').addEventListener('click', () => {
+    renderAuthGate(isSetup ? 'login' : 'setup');
+  });
   document.getElementById('authForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
