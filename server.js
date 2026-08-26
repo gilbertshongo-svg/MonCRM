@@ -6,6 +6,7 @@ const cors = require('cors');
 const store = require('./lib/store');
 const gmail = require('./lib/gmail');
 const whatsapp = require('./lib/whatsapp');
+const facebookLeads = require('./lib/facebookLeads');
 const auth = require('./lib/auth');
 const scheduler = require('./lib/scheduler');
 
@@ -91,6 +92,7 @@ app.get('/api/integrations/status', auth.requireAuth, (req, res) => {
   res.json({
     gmail: gmail.getStatus(),
     whatsapp: whatsapp.getStatus(),
+    facebookLeads: facebookLeads.getStatus(),
   });
 });
 
@@ -226,6 +228,20 @@ app.get('/webhook/whatsapp', (req, res) => {
 
 app.post('/webhook/whatsapp', (req, res) => {
   whatsapp.handleIncomingWebhook(req.body);
+  res.sendStatus(200);
+});
+
+/* ============================================================
+   Facebook / Instagram — prospects (Lead Ads) — webhook
+   ============================================================ */
+app.get('/webhook/facebook-leads', (req, res) => {
+  const challenge = facebookLeads.verifyWebhookChallenge(req.query);
+  if (challenge) return res.status(200).send(challenge);
+  res.status(403).send('Verification failed');
+});
+
+app.post('/webhook/facebook-leads', (req, res) => {
+  facebookLeads.handleIncomingWebhook(req.body).catch((e) => console.error('Erreur webhook prospects Facebook', e));
   res.sendStatus(200);
 });
 

@@ -1,19 +1,21 @@
-# MonCRM — Réception automatique des e-mails et messages WhatsApp
+# MonCRM — Réception automatique des e-mails, WhatsApp et prospects Facebook
 
 Ce dossier contient un serveur (Node.js) qui fait tourner votre CRM et reçoit
 automatiquement :
 - les **e-mails** entrants depuis un compte Gmail connecté,
-- les **messages WhatsApp** entrants sur un numéro WhatsApp (API officielle Meta, gratuite).
+- les **messages WhatsApp** entrants sur un numéro WhatsApp (API officielle Meta, gratuite),
+- les **prospects** qui remplissent un formulaire sur vos publicités Facebook/Instagram.
 
-Tout le code est déjà écrit. Il vous reste 3 choses à faire vous-même (je ne
+Tout le code est déjà écrit. Il vous reste 4 choses à faire vous-même (je ne
 peux pas les faire à votre place) :
 
 1. Créer des identifiants Google (gratuit) pour autoriser l'accès à Gmail.
 2. Créer un compte Meta for Developers (gratuit) pour recevoir des messages WhatsApp.
-3. Déployer ce dossier sur un hébergeur gratuit (Render.com) pour que le
+3. Connecter votre Page Facebook pour recevoir vos prospects publicitaires.
+4. Déployer ce dossier sur un hébergeur gratuit (Render.com) pour que le
    serveur tourne en permanence avec une adresse publique.
 
-Comptez environ **30-40 minutes** au total la première fois.
+Comptez environ **40-50 minutes** au total la première fois.
 
 ---
 
@@ -107,7 +109,50 @@ En contrepartie, Meta impose un mode test au départ.
 
 ---
 
-## Étape 3 — Déployer sur Render.com (gratuit)
+## Étape 3 — Connecter les prospects Facebook/Instagram (Lead Ads)
+
+Nécessite d'avoir déjà une Page Facebook professionnelle et de diffuser (ou
+prévoir de diffuser) des publicités avec formulaire **"Prospects"**. Utilise
+la même application Meta que l'étape 2 (WhatsApp) — pas besoin d'en recréer
+une.
+
+1. Sur https://developers.facebook.com/, ouvrez votre app → menu de gauche →
+   ajoutez le produit **Webhooks** si ce n'est pas déjà fait (**Ajouter un
+   produit** → Webhooks → Configurer).
+2. Toujours dans votre app, allez dans **Paramètres de l'app** → **De base**
+   → repérez votre **App ID** et **App Secret** (pas nécessaires pour ce
+   guide, mais utiles si un jour vous devez déboguer).
+3. Obtenez un **jeton d'accès de Page** (Page Access Token) :
+   - Allez sur **developers.facebook.com/tools/explorer** (Graph API Explorer).
+   - En haut à droite, sélectionnez votre application dans la liste.
+   - Bouton **Générer un token d'accès utilisateur**, autorisez les
+     permissions `pages_show_list`, `pages_manage_ads`, `leads_retrieval`,
+     `pages_read_engagement`.
+   - Une fois le token utilisateur généré, changez le menu déroulant
+     "Utilisateur ou Page" pour sélectionner **votre Page** — l'outil génère
+     alors un **jeton d'accès de Page**. Copiez-le : ce sera votre
+     `FACEBOOK_PAGE_ACCESS_TOKEN`.
+   - ⚠️ Ce jeton expire après ~1h par défaut. Une fois que tout fonctionne,
+     revenez ici pour le remplacer par un jeton longue durée (voir encadré
+     ci-dessous).
+4. Notez l'**ID de votre Page** (visible dans **Paramètres de la Page** sur
+   Facebook, ou via le sélecteur de Page dans Graph API Explorer) — ce sera
+   votre `FACEBOOK_PAGE_ID`.
+5. Choisissez vous-même une chaîne secrète quelconque (différente de celle
+   de WhatsApp), ce sera votre `FACEBOOK_LEADS_VERIFY_TOKEN`.
+
+> **Jeton longue durée (recommandé avant usage réel)** : dans Graph API
+> Explorer, utilisez l'outil **Access Token Debugger**
+> (developers.facebook.com/tools/debug/accesstoken) pour échanger votre
+> jeton de Page contre une version longue durée (~60 jours), ou passez par
+> **Meta Business Suite** → **Utilisateurs système** comme pour WhatsApp
+> pour un jeton qui n'expire jamais. Commencez avec le jeton court pour
+> tester la connexion, vous pourrez le remplacer plus tard sans rien changer
+> d'autre au code.
+
+---
+
+## Étape 4 — Déployer sur Render.com (gratuit)
 
 1. Ce dossier doit être dans un dépôt Git (GitHub, GitLab...). Si ce n'est
    pas déjà fait, créez un dépôt et poussez le contenu de `CRM-Server/`
@@ -130,6 +175,9 @@ En contrepartie, Meta impose un mode test au départ.
    | `WHATSAPP_ACCESS_TOKEN` | (étape 2) |
    | `WHATSAPP_PHONE_NUMBER_ID` | (étape 2) |
    | `WHATSAPP_VERIFY_TOKEN` | (étape 2, la chaîne que vous avez inventée) |
+   | `FACEBOOK_PAGE_ACCESS_TOKEN` | (étape 3) |
+   | `FACEBOOK_PAGE_ID` | (étape 3) |
+   | `FACEBOOK_LEADS_VERIFY_TOKEN` | (étape 3, la chaîne que vous avez inventée) |
    | `ADMIN_RESET_TOKEN` | Une chaîne secrète inventée par vous — permet de réinitialiser votre mot de passe si vous êtes bloqué·e dehors (garder précieusement) |
 
 6. Cliquez **Create Web Service**. Render construit et démarre le serveur
@@ -166,24 +214,34 @@ suivante) — sans rapport avec le stockage, juste un léger délai occasionnel.
 
 ---
 
-## Étape 4 — Connecter les intégrations dans le CRM
+## Étape 5 — Connecter les intégrations dans le CRM
 
 1. Ouvrez `https://xxxx.onrender.com` (votre CRM en ligne).
 2. Onglet **Intégrations** :
    - **E-mail (Gmail)** → cliquez **Connecter mon compte Gmail**, autorisez
      l'accès avec le compte Google ajouté comme testeur à l'étape 1.
    - **WhatsApp** → copiez l'**URL de webhook** affichée.
-3. Retournez sur developers.facebook.com → votre app → **WhatsApp** →
-   **Configuration** → section **Webhook** → **Modifier** :
-   - **Callback URL** : collez l'URL copiée.
+   - **Prospects Facebook/Instagram** → copiez l'**URL de webhook** affichée.
+3. Pour WhatsApp : retournez sur developers.facebook.com → votre app →
+   **WhatsApp** → **Configuration** → section **Webhook** → **Modifier** :
+   - **Callback URL** : collez l'URL copiée à l'étape précédente.
    - **Verify token** : la même chaîne que `WHATSAPP_VERIFY_TOKEN`.
    - **Vérifier et enregistrer**, puis abonnez-vous au champ **messages**.
+4. Pour les prospects : dans la même app → produit **Webhooks** → sélectionnez
+   l'objet **Page** dans le menu déroulant → **Modifier l'abonnement** :
+   - **URL de rappel** : l'URL de webhook prospects copiée.
+   - **Verify token** : la même chaîne que `FACEBOOK_LEADS_VERIFY_TOKEN`.
+   - **Vérifier et enregistrer**, puis cochez le champ **leadgen**.
+   - Toujours sur cette page, section **Abonnements de la Page** : sélectionnez
+     votre Page et cliquez **S'abonner** pour la lier à ce webhook.
 
-C'est terminé : les e-mails reçus sont synchronisés toutes les 2 minutes, et
-les messages WhatsApp arrivent en temps réel. Ils apparaissent dans l'onglet
-**Messages** du CRM, rattachés automatiquement au bon contact (par e-mail ou
-numéro de téléphone). Un message d'un expéditeur non enregistré apparaît
-comme « Expéditeur inconnu » avec un bouton **Assigner**.
+C'est terminé : les e-mails reçus sont synchronisés toutes les 2 minutes, les
+messages WhatsApp arrivent en temps réel, et chaque nouveau prospect
+Facebook/Instagram devient automatiquement un contact avec une tâche de
+suivi. Les e-mails/WhatsApp apparaissent dans l'onglet **Messages** du CRM,
+rattachés automatiquement au bon contact (par e-mail ou numéro de
+téléphone). Un message d'un expéditeur non enregistré apparaît comme
+« Expéditeur inconnu » avec un bouton **Assigner**.
 
 ---
 
@@ -199,3 +257,6 @@ comme « Expéditeur inconnu » avec un bouton **Assigner**.
   **réception** fonctionne déjà depuis n'importe quel numéro. Pour lever
   cette limite d'envoi, Meta demande une vérification d'entreprise
   (Meta Business Suite → Paramètres de l'entreprise → Vérification).
+- Un prospect Facebook/Instagram devient un **contact** (pas un message), avec
+  une **tâche** "Contacter [nom]" créée pour le jour même — ainsi rien ne se
+  perd dans la liste des tâches à faire.

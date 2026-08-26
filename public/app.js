@@ -606,6 +606,7 @@ async function renderIntegrations() {
   }
   const g = status.gmail || {};
   const w = status.whatsapp || {};
+  const fl = status.facebookLeads || {};
 
   el.innerHTML = `
     <div class="panel">
@@ -632,6 +633,17 @@ async function renderIntegrations() {
         Les messages WhatsApp reçus arrivent automatiquement dans MonCRM.</p>
         <p class="field-hint">URL de webhook à renseigner dans Meta for Developers (WhatsApp → Configuration → Webhook) : <code>${escapeHtml(w.webhookUrl || '')}</code></p>
         <p class="field-hint">⚠️ En mode test Meta, l'envoi de réponses ne fonctionne que vers des numéros ajoutés comme destinataires vérifiés dans le tableau de bord Meta.</p>
+      `}
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Prospects Facebook / Instagram</h2></div>
+      ${!fl.configured ? `
+        <p class="confirm-text">Non configuré côté serveur. Ajoutez <code>FACEBOOK_PAGE_ACCESS_TOKEN</code>, <code>FACEBOOK_PAGE_ID</code> et <code>FACEBOOK_LEADS_VERIFY_TOKEN</code> dans les variables d'environnement (voir SETUP.md), puis redéployez.</p>
+      ` : `
+        <p class="confirm-text">✅ Configuré (Page <strong>${escapeHtml(fl.pageId || '')}</strong>).<br>
+        Chaque personne qui remplit un formulaire "Prospects" sur vos publicités Facebook/Instagram devient automatiquement un contact, avec une tâche de suivi créée pour aujourd'hui.</p>
+        <p class="field-hint">URL de webhook à renseigner dans Meta for Developers (produit Webhooks → Page → champ <code>leadgen</code>) : <code>${escapeHtml(fl.webhookUrl || '')}</code></p>
       `}
     </div>
 
