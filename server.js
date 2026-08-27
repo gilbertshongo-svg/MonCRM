@@ -7,8 +7,10 @@ const store = require('./lib/store');
 const gmail = require('./lib/gmail');
 const whatsapp = require('./lib/whatsapp');
 const facebookLeads = require('./lib/facebookLeads');
+const facebookAds = require('./lib/facebookAds');
 const auth = require('./lib/auth');
 const scheduler = require('./lib/scheduler');
+const exportLib = require('./lib/export');
 
 const app = express();
 app.set('trust proxy', true);
@@ -18,7 +20,7 @@ app.use(express.json({ limit: '2mb' }));
 const PORT = process.env.PORT || 3000;
 
 /* ============================================================
-   Authentification (compte unique, protège toutes vos données)
+   Authentification (plusieurs comptes possibles, protège toutes vos données)
    ============================================================ */
 app.get('/api/auth/status', (req, res) => {
   const session = auth.getSessionFromRequest(req);
@@ -26,6 +28,7 @@ app.get('/api/auth/status', (req, res) => {
     hasAccount: auth.hasAccount(),
     authenticated: Boolean(session),
     email: session?.email || null,
+    isAdmin: session?.isAdmin || false,
     resetAvailable: auth.isResetConfigured(),
   });
 });
@@ -36,17 +39,17 @@ app.post('/api/auth/setup', (req, res) => {
   if (!email || !password || password.length < 8) {
     return res.status(400).json({ error: 'E-mail et mot de passe (8 caractères minimum) requis.' });
   }
-  auth.createAccount(email, password);
-  auth.setSessionCookie(res, email.trim().toLowerCase());
+  auth.createFirstAccount(email, password);
+  const user = auth.verifyCredentials(email, password);
+  auth.setSessionCookie(res, user);
   res.json({ ok: true });
 });
 
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  if (!auth.verifyCredentials(email, password)) {
-    return res.status(401).json({ error: 'E-mail ou mot de passe incorrect.' });
-  }
-  auth.setSessionCookie(res, String(email).trim().toLowerCase());
+  const user = auth.verifyCredentials(email, password);
+  if (!user) return res.status(401).json({ error: 'E-mail ou mot de passe incorrect.' });
+  auth.setSessionCookie(res, user);
   res.json({ ok: true });
 });
 
@@ -62,7 +65,36 @@ app.post('/api/auth/reset', (req, res) => {
   }
   try {
     auth.resetAccount(email, password, resetToken);
-    auth.setSessionCookie(res, String(email).trim().toLowerCase());
+    const user = auth.verifyCredentials(email, password);
+    auth.setSessionCookie(res, user);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+/* ---------- Gestion des utilisateurs (réservée aux administrateurs) ---------- */
+app.get('/api/users', auth.requireAuth, auth.requireAdmin, (req, res) => {
+  res.json(auth.listUsers());
+});
+
+app.post('/api/users', auth.requireAuth, auth.requireAdmin, (req, res) => {
+  const { email, password, isAdmin } = req.body;
+  if (!email || !password || password.length < 8) {
+    return res.status(400).json({ error: 'E-mail et mot de passe (8 caractères minimum) requis.' });
+  }
+  try {
+    const user = auth.addUser(email, password, isAdmin);
+    res.json({ ok: true, user });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/users/:id', auth.requireAuth, auth.requireAdmin, (req, res) => {
+  if (req.params.id === req.user.id) return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte pendant que vous êtes connecté·e.' });
+  try {
+    auth.removeUser(req.params.id);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -93,7 +125,17 @@ app.get('/api/integrations/status', auth.requireAuth, (req, res) => {
     gmail: gmail.getStatus(),
     whatsapp: whatsapp.getStatus(),
     facebookLeads: facebookLeads.getStatus(),
+    facebookAds: facebookAds.getStatus(),
   });
+});
+
+app.get('/api/integrations/facebook-ads/insights', auth.requireAuth, async (req, res) => {
+  try {
+    const insights = await facebookAds.fetchInsights({ datePreset: req.query.datePreset });
+    res.json(insights);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 /* ============================================================
@@ -259,6 +301,45 @@ app.post('/api/messages/:id/assign', auth.requireAuth, async (req, res) => {
     target.fromRaw = null;
   });
   res.json({ ok: true, data: store.getData() });
+});
+
+/* ============================================================
+   Export (Excel / PDF / Word)
+   ============================================================ */
+app.get('/api/export/excel', auth.requireAuth, async (req, res) => {
+  try {
+    const buffer = await exportLib.generateExcelBuffer(store.getData());
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="moncrm-export-${new Date().toISOString().slice(0, 10)}.xlsx"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error('Échec export Excel', e);
+    res.status(500).json({ error: "Échec de la génération du fichier Excel." });
+  }
+});
+
+app.get('/api/export/pdf', auth.requireAuth, async (req, res) => {
+  try {
+    const buffer = await exportLib.generatePdfBuffer(store.getData());
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="moncrm-export-${new Date().toISOString().slice(0, 10)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error('Échec export PDF', e);
+    res.status(500).json({ error: "Échec de la génération du fichier PDF." });
+  }
+});
+
+app.get('/api/export/word', auth.requireAuth, async (req, res) => {
+  try {
+    const buffer = await exportLib.generateWordBuffer(store.getData());
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="moncrm-export-${new Date().toISOString().slice(0, 10)}.docx"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error('Échec export Word', e);
+    res.status(500).json({ error: "Échec de la génération du fichier Word." });
+  }
 });
 
 /* ============================================================

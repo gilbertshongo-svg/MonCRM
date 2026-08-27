@@ -6,6 +6,11 @@ automatiquement :
 - les **messages WhatsApp** entrants sur un numéro WhatsApp (API officielle Meta, gratuite),
 - les **prospects** qui remplissent un formulaire sur vos publicités Facebook/Instagram.
 
+Il permet aussi :
+- d'**exporter** vos données en Excel, PDF ou Word (en plus du JSON complet),
+- d'avoir **plusieurs utilisateurs**, chacun avec son propre e-mail et mot de passe,
+- de voir les **statistiques** de vos campagnes publicitaires Facebook/Instagram.
+
 Tout le code est déjà écrit. Il vous reste 4 choses à faire vous-même (je ne
 peux pas les faire à votre place) :
 
@@ -178,6 +183,7 @@ une.
    | `FACEBOOK_PAGE_ACCESS_TOKEN` | (étape 3) |
    | `FACEBOOK_PAGE_ID` | (étape 3) |
    | `FACEBOOK_LEADS_VERIFY_TOKEN` | (étape 3, la chaîne que vous avez inventée) |
+   | `FACEBOOK_AD_ACCOUNT_ID` | *(optionnel)* Pour voir les statistiques de vos publicités dans l'onglet Intégrations — l'identifiant de votre compte publicitaire (Gestionnaire de publicités Meta → en haut à droite, format `123456789`, avec ou sans le préfixe `act_`) |
    | `ADMIN_RESET_TOKEN` | Une chaîne secrète inventée par vous — permet de réinitialiser votre mot de passe si vous êtes bloqué·e dehors (garder précieusement) |
 
 6. Cliquez **Create Web Service**. Render construit et démarre le serveur
@@ -242,6 +248,35 @@ suivi. Les e-mails/WhatsApp apparaissent dans l'onglet **Messages** du CRM,
 rattachés automatiquement au bon contact (par e-mail ou numéro de
 téléphone). Un message d'un expéditeur non enregistré apparaît comme
 « Expéditeur inconnu » avec un bouton **Assigner**.
+
+---
+
+## Exporter vos données
+
+Bouton **Exporter** dans la barre latérale → choisissez un format :
+- **Excel / PDF / Word** : un rapport structuré (contacts, entreprises,
+  pipeline, tâches, messages), prêt à consulter ou partager avec quelqu'un
+  qui n'a pas accès au CRM.
+- **JSON** : sauvegarde complète, réimportable via le bouton **Importer**.
+
+---
+
+## Ajouter d'autres utilisateurs
+
+Réservé aux **administrateurs**. Onglet **Utilisateurs** (visible seulement
+pour un compte admin) → **+ Nouvel utilisateur** → e-mail, mot de passe, et
+cochez "Administrateur" si cette personne doit aussi pouvoir gérer les
+utilisateurs. Chacun se connecte ensuite avec son propre e-mail et mot de
+passe, sur la même adresse `https://xxxx.onrender.com`. Il n'y a pas
+d'inscription libre : seul un administrateur peut créer un nouvel accès.
+
+---
+
+## Statistiques publicitaires Facebook/Instagram
+
+Onglet **Intégrations** → si `FACEBOOK_AD_ACCOUNT_ID` est configuré, un
+bouton **Charger les statistiques** affiche la dépense, les impressions, les
+clics et les résultats de vos campagnes des 30 derniers jours.
 
 ---
 

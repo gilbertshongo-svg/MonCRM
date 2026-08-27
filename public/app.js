@@ -36,14 +36,16 @@ const VIEW_TITLES = {
   pipeline: 'Pipeline de vente',
   tasks: 'Tâches & rappels',
   integrations: 'Intégrations',
+  users: 'Utilisateurs',
 };
 
 /* ---------- State ---------- */
-let DATA = { contacts: [], companies: [], deals: [], tasks: [], messages: [] };
+let DATA = { contacts: [], companies: [], deals: [], tasks: [], messages: [], scheduledMessages: [] };
 let currentView = 'dashboard';
 let searchTerm = '';
 let draggedDealId = null;
 let integrationsStatus = { gmail: {}, whatsapp: {} };
+let currentUser = { email: null, isAdmin: false };
 
 /* ---------- Persistence (via l'API du serveur) ---------- */
 async function loadData() {
@@ -149,8 +151,9 @@ function setView(view) {
     pipeline: 'Rechercher une opportunité…',
     tasks: 'Rechercher une tâche…',
     integrations: '',
+    users: '',
   }[view];
-  search.hidden = view === 'integrations';
+  search.hidden = view === 'integrations' || view === 'users';
   renderCurrentView();
 }
 
@@ -162,6 +165,7 @@ function renderCurrentView() {
   else if (currentView === 'pipeline') renderPipeline();
   else if (currentView === 'tasks') renderTasks();
   else if (currentView === 'integrations') renderIntegrations();
+  else if (currentView === 'users') renderUsers();
 }
 
 /* ============================================================
@@ -607,6 +611,7 @@ async function renderIntegrations() {
   const g = status.gmail || {};
   const w = status.whatsapp || {};
   const fl = status.facebookLeads || {};
+  const fa = status.facebookAds || {};
 
   el.innerHTML = `
     <div class="panel">
@@ -648,6 +653,17 @@ async function renderIntegrations() {
     </div>
 
     <div class="panel">
+      <div class="panel-head"><h2>Statistiques publicitaires Facebook/Instagram</h2></div>
+      ${!fa.configured ? `
+        <p class="confirm-text">Non configuré côté serveur. Ajoutez <code>FACEBOOK_AD_ACCOUNT_ID</code> dans les variables d'environnement (réutilise le jeton déjà configuré pour les prospects), puis redéployez.</p>
+      ` : `
+        <p class="confirm-text">✅ Configuré (compte publicitaire <strong>${escapeHtml(fa.adAccountId || '')}</strong>).</p>
+        <button class="btn small" data-action="load-ads-insights">Charger les statistiques (30 derniers jours)</button>
+        <div id="adsInsightsResult" style="margin-top:14px"></div>
+      `}
+    </div>
+
+    <div class="panel">
       <div class="panel-head"><h2>Correspondance des contacts</h2></div>
       <p class="confirm-text">Un e-mail ou message WhatsApp reçu est automatiquement rattaché au contact dont l'adresse e-mail ou le numéro de téléphone correspond. Si aucun contact ne correspond, le message apparaît dans <strong>Messages</strong> comme « Expéditeur inconnu » — vous pourrez l'assigner à un contact existant en un clic.</p>
     </div>
@@ -658,6 +674,140 @@ async function disconnectGmail() {
   await fetch('/api/integrations/gmail/disconnect', { method: 'POST' });
   showToast('Gmail déconnecté.');
   renderIntegrations();
+}
+
+async function loadAdsInsights() {
+  const target = document.getElementById('adsInsightsResult');
+  if (!target) return;
+  target.innerHTML = `<p class="field-hint">Chargement…</p>`;
+  try {
+    const res = await fetch('/api/integrations/facebook-ads/insights');
+    const body = await res.json();
+    if (!res.ok) { target.innerHTML = `<p class="confirm-text" style="color:var(--status-critical)">${escapeHtml(body.error || 'Échec du chargement.')}</p>`; return; }
+
+    const t = body.totals;
+    const rowsHtml = body.rows.length ? body.rows.map(r => `
+      <tr>
+        <td>${escapeHtml(r.campaignName)}</td>
+        <td>${fmtMoney(r.spend)}</td>
+        <td>${r.impressions.toLocaleString('fr-FR')}</td>
+        <td>${r.clicks.toLocaleString('fr-FR')}</td>
+        <td>${r.ctr.toFixed(2)}%</td>
+        <td>${r.results.toLocaleString('fr-FR')}</td>
+      </tr>`).join('') : `<tr><td colspan="6" class="cell-sub">Aucune campagne active sur cette période.</td></tr>`;
+
+    target.innerHTML = `
+      <div class="stat-grid" style="margin-bottom:14px">
+        <div class="stat-tile accent-1"><div class="label">Dépense totale</div><div class="value">${fmtMoney(t.spend)}</div></div>
+        <div class="stat-tile"><div class="label">Clics</div><div class="value">${t.clicks.toLocaleString('fr-FR')}</div></div>
+        <div class="stat-tile"><div class="label">Impressions</div><div class="value">${t.impressions.toLocaleString('fr-FR')}</div></div>
+        <div class="stat-tile accent-good"><div class="label">Résultats</div><div class="value">${t.results.toLocaleString('fr-FR')}</div></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Campagne</th><th>Dépense</th><th>Impressions</th><th>Clics</th><th>CTR</th><th>Résultats</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    `;
+  } catch (e) {
+    target.innerHTML = `<p class="confirm-text" style="color:var(--status-critical)">Serveur injoignable.</p>`;
+  }
+}
+
+/* ============================================================
+   UTILISATEURS (réservé aux administrateurs)
+   ============================================================ */
+async function renderUsers() {
+  const el = document.getElementById('view-users');
+  el.innerHTML = `<div class="panel"><p class="confirm-text">Chargement…</p></div>`;
+  let users;
+  try {
+    const res = await fetch('/api/users');
+    if (res.status === 403) { el.innerHTML = `<div class="panel"><p class="confirm-text">Réservé aux administrateurs.</p></div>`; return; }
+    users = await res.json();
+  } catch (e) {
+    el.innerHTML = `<div class="panel"><p class="confirm-text">Impossible de charger la liste des utilisateurs.</p></div>`;
+    return;
+  }
+
+  const rows = users.map(u => `
+    <tr>
+      <td>
+        <div class="cell-name">${escapeHtml(u.email)}</div>
+        <div class="cell-sub">Créé le ${fmtDate(u.createdAt.slice(0, 10))}</div>
+      </td>
+      <td>${u.isAdmin ? '<span class="badge stage-gagne">Administrateur</span>' : '<span class="badge channel-autre">Membre</span>'}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" data-action="delete-user" data-id="${u.id}" title="Supprimer" ${u.email === currentUser.email ? 'disabled' : ''}>${ICON_TRASH}</button>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    <div class="toolbar">
+      <div class="field-hint">${users.length} utilisateur(s) — chacun se connecte avec son propre e-mail et mot de passe.</div>
+      <button class="btn" data-action="new-user">+ Nouvel utilisateur</button>
+    </div>
+    <div class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Utilisateur</th><th>Rôle</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function openNewUserModal() {
+  openModal({
+    title: 'Nouvel utilisateur',
+    bodyHtml: `
+      <div class="field"><label>E-mail *</label><input type="email" name="email" required autocomplete="off"></div>
+      <div class="field"><label>Mot de passe *</label><input type="password" name="password" required minlength="8" autocomplete="new-password"></div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; flex-direction:row;">
+          <input type="checkbox" name="isAdmin" style="width:auto">
+          Administrateur (peut gérer les utilisateurs)
+        </label>
+      </div>
+    `,
+    submitLabel: 'Créer',
+    onSubmit: async (fd) => {
+      const payload = { email: fd.get('email').trim(), password: fd.get('password'), isAdmin: fd.get('isAdmin') === 'on' };
+      try {
+        const res = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        if (!res.ok) { showToast(body.error || 'Échec.'); return false; }
+        renderUsers();
+        showToast('Utilisateur créé.');
+        return true;
+      } catch (e) {
+        showToast('Serveur injoignable.');
+        return false;
+      }
+    },
+  });
+}
+
+function deleteUser(id) {
+  confirmModal('Supprimer cet utilisateur ? Il ne pourra plus se connecter.', async () => {
+    try {
+      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!res.ok) { showToast(body.error || 'Échec.'); return; }
+      renderUsers();
+      showToast('Utilisateur supprimé.');
+    } catch (e) {
+      showToast('Serveur injoignable.');
+    }
+  });
 }
 
 /* ============================================================
@@ -1207,7 +1357,7 @@ function closeModal() {
 /* ============================================================
    Import / Export
    ============================================================ */
-function exportData() {
+function exportDataJson() {
   const blob = new Blob([JSON.stringify(DATA, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1218,6 +1368,34 @@ function exportData() {
   a.remove();
   URL.revokeObjectURL(url);
   showToast('Export terminé.');
+}
+
+function openExportModal() {
+  const overlay = document.getElementById('modalRoot');
+  const box = document.getElementById('modalBox');
+  box.innerHTML = `
+    <div class="modal-head"><h3>Exporter mes données</h3><button type="button" class="icon-btn" data-action="close-modal">✕</button></div>
+    <div class="modal-body">
+      <p class="confirm-text">Choisissez un format. Excel, PDF et Word contiennent un rapport structuré (contacts, entreprises, pipeline, tâches, messages) prêt à consulter ou partager. Le format JSON contient toutes les données brutes — utilisez-le pour une sauvegarde complète réimportable dans MonCRM.</p>
+      <div class="export-choices">
+        <button type="button" class="btn secondary" data-export="excel">📊 Excel (.xlsx)</button>
+        <button type="button" class="btn secondary" data-export="pdf">📄 PDF</button>
+        <button type="button" class="btn secondary" data-export="word">📝 Word (.docx)</button>
+        <button type="button" class="btn secondary" data-export="json">🗂️ JSON (sauvegarde complète)</button>
+      </div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn secondary" data-action="close-modal">Fermer</button></div>
+  `;
+  overlay.hidden = false;
+  box.querySelectorAll('[data-export]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const fmt = btn.dataset.export;
+      if (fmt === 'json') { exportDataJson(); closeModal(); return; }
+      window.location.href = `/api/export/${fmt}`;
+      showToast('Téléchargement en cours…');
+      closeModal();
+    });
+  });
 }
 
 function importData(file) {
@@ -1262,6 +1440,10 @@ document.addEventListener('click', (e) => {
     case 'connect-gmail': window.location.href = '/auth/google'; break;
     case 'disconnect-gmail': disconnectGmail(); break;
     case 'refresh-integrations': renderIntegrations(); break;
+    case 'load-ads-insights': loadAdsInsights(); break;
+
+    case 'new-user': openNewUserModal(); break;
+    case 'delete-user': deleteUser(id); break;
 
     case 'view-contact-messages': {
       const c = findContact(id);
@@ -1309,7 +1491,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !document.getElementById('modalRoot').hidden) closeModal();
 });
 
-document.getElementById('btnExport').addEventListener('click', exportData);
+document.getElementById('btnExport').addEventListener('click', openExportModal);
 document.getElementById('btnImport').addEventListener('click', () => document.getElementById('fileImport').click());
 document.getElementById('fileImport').addEventListener('change', (e) => {
   const file = e.target.files[0];
@@ -1455,6 +1637,13 @@ async function logout() {
 
 /* ---------- Démarrage de l'application (une fois authentifié) ---------- */
 async function startApp() {
+  try {
+    const statusRes = await fetch('/api/auth/status');
+    const status = await statusRes.json();
+    currentUser = { email: status.email, isAdmin: Boolean(status.isAdmin) };
+    document.getElementById('navUsers').hidden = !currentUser.isAdmin;
+  } catch (e) { /* pas bloquant : on retentera via refreshFromServer */ }
+
   try {
     DATA = await loadData();
   } catch (e) {

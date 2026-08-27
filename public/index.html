@@ -46,10 +46,14 @@
         <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
         Intégrations
       </button>
+      <button class="nav-item" data-view="users" id="navUsers" hidden>
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Utilisateurs
+      </button>
     </nav>
     <div class="sidebar-footer">
-      <button id="btnExport" class="ghost-btn" title="Exporter toutes les données en JSON">Exporter</button>
-      <button id="btnImport" class="ghost-btn" title="Importer des données JSON">Importer</button>
+      <button id="btnExport" class="ghost-btn" title="Exporter vos données (Excel, PDF, Word, JSON)">Exporter</button>
+      <button id="btnImport" class="ghost-btn" title="Importer une sauvegarde JSON">Importer</button>
       <button id="btnLogout" class="ghost-btn" title="Se déconnecter">Déconnexion</button>
       <input type="file" id="fileImport" accept="application/json" hidden>
     </div>
@@ -71,6 +75,7 @@
     <section id="view-pipeline" class="view" hidden></section>
     <section id="view-tasks" class="view" hidden></section>
     <section id="view-integrations" class="view" hidden></section>
+    <section id="view-users" class="view" hidden></section>
   </main>
 </div>
 
