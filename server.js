@@ -136,6 +136,16 @@ app.delete('/api/users/:id', auth.requireAuth, auth.requireAdmin, (req, res) => 
   }
 });
 
+app.patch('/api/users/:id', auth.requireAuth, auth.requireAdmin, (req, res) => {
+  const { email, isAdmin, password } = req.body;
+  try {
+    const user = auth.updateUser(req.params.id, { email, isAdmin, password });
+    res.json({ ok: true, user });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 /* ============================================================
    Données du CRM (protégées : authentification requise)
    ============================================================ */

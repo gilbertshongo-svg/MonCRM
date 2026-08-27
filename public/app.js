@@ -718,6 +718,8 @@ async function loadAdsInsights() {
 /* ============================================================
    UTILISATEURS (réservé aux administrateurs)
    ============================================================ */
+let usersCache = [];
+
 async function renderUsers() {
   const el = document.getElementById('view-users');
   el.innerHTML = `<div class="panel"><p class="confirm-text">Chargement…</p></div>`;
@@ -726,6 +728,7 @@ async function renderUsers() {
     const res = await fetch('/api/users');
     if (res.status === 403) { el.innerHTML = `<div class="panel"><p class="confirm-text">Réservé aux administrateurs.</p></div>`; return; }
     users = await res.json();
+    usersCache = users;
   } catch (e) {
     el.innerHTML = `<div class="panel"><p class="confirm-text">Impossible de charger la liste des utilisateurs.</p></div>`;
     return;
@@ -740,6 +743,7 @@ async function renderUsers() {
       <td>${u.isAdmin ? '<span class="badge stage-gagne">Administrateur</span>' : '<span class="badge channel-autre">Membre</span>'}</td>
       <td>
         <div class="row-actions">
+          <button class="icon-btn" data-action="edit-user" data-id="${u.id}" title="Modifier / réinitialiser le mot de passe">${ICON_EDIT}</button>
           <button class="icon-btn" data-action="delete-user" data-id="${u.id}" title="Supprimer" ${u.email === currentUser.email ? 'disabled' : ''}>${ICON_TRASH}</button>
         </div>
       </td>
@@ -787,6 +791,48 @@ function openNewUserModal() {
         if (!res.ok) { showToast(body.error || 'Échec.'); return false; }
         renderUsers();
         showToast('Utilisateur créé.');
+        return true;
+      } catch (e) {
+        showToast('Serveur injoignable.');
+        return false;
+      }
+    },
+  });
+}
+
+function openEditUserModal(id) {
+  const u = usersCache.find((x) => x.id === id);
+  if (!u) return;
+  const isSelf = u.email === currentUser.email;
+  openModal({
+    title: 'Modifier l\'utilisateur',
+    bodyHtml: `
+      <div class="field"><label>E-mail *</label><input type="email" name="email" required value="${escapeHtml(u.email)}"></div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; flex-direction:row;">
+          <input type="checkbox" name="isAdmin" style="width:auto" ${u.isAdmin ? 'checked' : ''} ${isSelf ? 'disabled' : ''}>
+          Administrateur (peut gérer les utilisateurs)
+        </label>
+        ${isSelf ? '<div class="field-hint">Vous ne pouvez pas modifier vos propres droits administrateur.</div>' : ''}
+      </div>
+      <div class="field"><label>Nouveau mot de passe</label><input type="password" name="password" minlength="8" autocomplete="new-password" placeholder="Laisser vide pour ne pas changer"></div>
+    `,
+    submitLabel: 'Enregistrer',
+    onSubmit: async (fd) => {
+      const password = fd.get('password');
+      const payload = { email: fd.get('email').trim() };
+      if (!isSelf) payload.isAdmin = fd.get('isAdmin') === 'on';
+      if (password) payload.password = password;
+      try {
+        const res = await fetch(`/api/users/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        if (!res.ok) { showToast(body.error || 'Échec.'); return false; }
+        renderUsers();
+        showToast(password ? 'Utilisateur mis à jour, mot de passe réinitialisé.' : 'Utilisateur mis à jour.');
         return true;
       } catch (e) {
         showToast('Serveur injoignable.');
@@ -1443,6 +1489,7 @@ document.addEventListener('click', (e) => {
     case 'load-ads-insights': loadAdsInsights(); break;
 
     case 'new-user': openNewUserModal(); break;
+    case 'edit-user': openEditUserModal(id); break;
     case 'delete-user': deleteUser(id); break;
 
     case 'view-contact-messages': {

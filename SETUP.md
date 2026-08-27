@@ -293,6 +293,11 @@ utilisateurs. Chacun se connecte ensuite avec son propre e-mail et mot de
 passe, sur la même adresse `https://xxxx.onrender.com`. Il n'y a pas
 d'inscription libre : seul un administrateur peut créer un nouvel accès.
 
+Un administrateur peut aussi **modifier** un utilisateur existant (icône
+crayon sur sa ligne) : changer son e-mail, ses droits administrateur, ou
+**réinitialiser son mot de passe directement** — utile si un membre est
+bloqué dehors et ne peut pas utiliser "Mot de passe oublié" lui-même.
+
 ---
 
 ## Mot de passe oublié
