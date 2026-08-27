@@ -1537,11 +1537,96 @@ function hideAuthGate() {
 }
 
 let authResetAvailable = false;
+let forgotPasswordEmail = ''; // mémorisé entre l'étape "e-mail" et l'étape "code" du flux mot de passe oublié
 
 function renderAuthGate(mode, errorMsg) {
   const el = document.getElementById('authGate');
   const isSetup = mode === 'setup';
   const isReset = mode === 'reset';
+  const isForgot = mode === 'forgot';
+  const isForgotVerify = mode === 'forgot-verify';
+
+  if (isForgot) {
+    el.innerHTML = `
+      <div class="auth-card">
+        <div class="brand"><span class="brand-mark">M</span><span class="brand-name">MonCRM</span></div>
+        <h2>Mot de passe oublié</h2>
+        <p class="lead">Entrez votre e-mail — si un compte existe, un code de vérification à 6 chiffres vous sera envoyé.</p>
+        <form id="authForm">
+          <div class="field"><label>E-mail</label><input type="email" name="email" required autocomplete="username" value="${escapeHtml(forgotPasswordEmail)}"></div>
+          ${errorMsg ? `<div class="auth-error">${escapeHtml(errorMsg)}</div>` : ''}
+          <button type="submit" class="btn">Envoyer le code</button>
+        </form>
+        <p class="auth-switch"><button type="button" class="link-btn" id="toggleAuthMode">Retour à la connexion</button></p>
+        ${authResetAvailable ? `<p class="auth-switch"><button type="button" class="link-btn" id="useAdminReset">Vous êtes administrateur et avez la clé de récupération ?</button></p>` : ''}
+      </div>
+    `;
+    document.getElementById('toggleAuthMode').addEventListener('click', () => renderAuthGate('login'));
+    const adminBtn = document.getElementById('useAdminReset');
+    if (adminBtn) adminBtn.addEventListener('click', () => renderAuthGate('reset'));
+    document.getElementById('authForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const email = fd.get('email').trim();
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const body = await res.json();
+        if (!res.ok) { renderAuthGate('forgot', body.error || 'Échec.'); return; }
+        forgotPasswordEmail = email;
+        showToast('Code envoyé — vérifiez votre boîte de réception.');
+        renderAuthGate('forgot-verify');
+      } catch (err) {
+        renderAuthGate('forgot', 'Serveur injoignable. Réessayez.');
+      }
+    });
+    const firstInputForgot = el.querySelector('input');
+    if (firstInputForgot) setTimeout(() => firstInputForgot.focus(), 30);
+    return;
+  }
+
+  if (isForgotVerify) {
+    el.innerHTML = `
+      <div class="auth-card">
+        <div class="brand"><span class="brand-mark">M</span><span class="brand-name">MonCRM</span></div>
+        <h2>Entrez le code reçu</h2>
+        <p class="lead">Un code à 6 chiffres a été envoyé à <strong>${escapeHtml(forgotPasswordEmail)}</strong> (valable 15 minutes).</p>
+        <form id="authForm">
+          <div class="field"><label>Code de vérification</label><input type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code"></div>
+          <div class="field"><label>Nouveau mot de passe</label><input type="password" name="password" required minlength="8" autocomplete="new-password"></div>
+          ${errorMsg ? `<div class="auth-error">${escapeHtml(errorMsg)}</div>` : ''}
+          <button type="submit" class="btn">Réinitialiser et me connecter</button>
+        </form>
+        <p class="auth-switch"><button type="button" class="link-btn" id="toggleAuthMode">Redemander un code</button></p>
+      </div>
+    `;
+    document.getElementById('toggleAuthMode').addEventListener('click', () => renderAuthGate('forgot'));
+    document.getElementById('authForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = { email: forgotPasswordEmail, code: fd.get('code').trim(), password: fd.get('password') };
+      try {
+        const res = await fetch('/api/auth/reset-with-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        if (!res.ok) { renderAuthGate('forgot-verify', body.error || 'Échec.'); return; }
+        forgotPasswordEmail = '';
+        hideAuthGate();
+        startApp();
+      } catch (err) {
+        renderAuthGate('forgot-verify', 'Serveur injoignable. Réessayez.');
+      }
+    });
+    const firstInputVerify = el.querySelector('input');
+    if (firstInputVerify) setTimeout(() => firstInputVerify.focus(), 30);
+    return;
+  }
 
   if (isReset) {
     el.innerHTML = `
@@ -1600,14 +1685,14 @@ function renderAuthGate(mode, errorMsg) {
         ${isSetup ? 'Vous avez déjà un compte ?' : "Pas encore de compte ?"}
         <button type="button" class="link-btn" id="toggleAuthMode">${isSetup ? 'Se connecter' : 'Créer un accès'}</button>
       </p>
-      ${!isSetup && authResetAvailable ? `<p class="auth-switch"><button type="button" class="link-btn" id="forgotPassword">Mot de passe oublié ?</button></p>` : ''}
+      ${!isSetup ? `<p class="auth-switch"><button type="button" class="link-btn" id="forgotPassword">Mot de passe oublié ?</button></p>` : ''}
     </div>
   `;
   document.getElementById('toggleAuthMode').addEventListener('click', () => {
     renderAuthGate(isSetup ? 'login' : 'setup');
   });
   const forgotBtn = document.getElementById('forgotPassword');
-  if (forgotBtn) forgotBtn.addEventListener('click', () => renderAuthGate('reset'));
+  if (forgotBtn) forgotBtn.addEventListener('click', () => renderAuthGate('forgot'));
   document.getElementById('authForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);

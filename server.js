@@ -74,6 +74,40 @@ app.post('/api/auth/reset', (req, res) => {
   }
 });
 
+/* ---------- Mot de passe oublié (code envoyé par e-mail, pour tous les utilisateurs) ---------- */
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'E-mail requis.' });
+  if (!gmail.isConnected()) {
+    return res.status(400).json({ error: "L'envoi d'e-mails n'est pas configuré sur ce CRM. Demandez à votre administrateur d'utiliser la clé de récupération." });
+  }
+  try {
+    const { code, email: userEmail } = auth.createPasswordResetCode(email);
+    await gmail.sendEmail({
+      to: userEmail,
+      subject: 'Code de vérification MonCRM',
+      content: `Votre code de vérification pour réinitialiser votre mot de passe MonCRM est : ${code}\n\nCe code est valable 15 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.`,
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Échec de l'envoi du code." });
+  }
+});
+
+app.post('/api/auth/reset-with-code', (req, res) => {
+  const { email, code, password } = req.body;
+  if (!email || !code || !password || password.length < 8) {
+    return res.status(400).json({ error: 'E-mail, code et mot de passe (8 caractères minimum) requis.' });
+  }
+  try {
+    const user = auth.resetPasswordWithCode(email, code, password);
+    auth.setSessionCookie(res, user);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 /* ---------- Gestion des utilisateurs (réservée aux administrateurs) ---------- */
 app.get('/api/users', auth.requireAuth, auth.requireAdmin, (req, res) => {
   res.json(auth.listUsers());

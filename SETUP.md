@@ -295,6 +295,22 @@ d'inscription libre : seul un administrateur peut créer un nouvel accès.
 
 ---
 
+## Mot de passe oublié
+
+Depuis l'écran de connexion, chaque utilisateur (pas seulement
+l'administrateur) peut cliquer **"Mot de passe oublié ?"** :
+1. Il entre son e-mail.
+2. S'il correspond à un compte, un **code à 6 chiffres** est envoyé par
+   e-mail (via votre intégration Gmail — il faut donc que Gmail soit
+   connecté, voir Étape 1).
+3. Il entre le code (valable 15 minutes) et choisit un nouveau mot de passe.
+
+Si Gmail n'est pas connecté, ce bouton affiche un message invitant à
+contacter l'administrateur, qui peut alors utiliser la **clé de
+récupération** (`ADMIN_RESET_TOKEN`, voir plus haut) comme filet de secours.
+
+---
+
 ## Statistiques publicitaires Facebook/Instagram
 
 Onglet **Intégrations** → si `FACEBOOK_AD_ACCOUNT_ID` est configuré, un
