@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 
 const store = require('./lib/store');
+const kv = require('./lib/kv');
 const gmail = require('./lib/gmail');
 const whatsapp = require('./lib/whatsapp');
 const facebookLeads = require('./lib/facebookLeads');
@@ -354,20 +355,33 @@ app.get('*', (req, res) => {
    Synchronisation Gmail périodique
    ============================================================ */
 const POLL_INTERVAL_MS = 2 * 60 * 1000;
-setInterval(() => {
-  gmail.pollNewEmails().catch((e) => console.error('Erreur de synchronisation Gmail', e));
-}, POLL_INTERVAL_MS);
+const SCHEDULE_CHECK_INTERVAL_MS = 60 * 1000;
 
 /* ============================================================
-   Envoi des messages programmés arrivés à échéance
+   Démarrage : on charge d'abord les données persistées (Upstash ou
+   fichier local, voir lib/kv.js) avant d'accepter la moindre requête.
    ============================================================ */
-const SCHEDULE_CHECK_INTERVAL_MS = 60 * 1000;
-setInterval(() => {
-  scheduler.sendDueMessages().catch((e) => console.error('Erreur d\'envoi des messages programmés', e));
-}, SCHEDULE_CHECK_INTERVAL_MS);
+Promise.all([store.init(), auth.init()])
+  .then(() => {
+    console.log(kv.isConfigured()
+      ? 'Stockage : Upstash (persistant, survit aux redéploiements).'
+      : 'Stockage : fichier local (voir DATA_DIR / Upstash pour la persistance en production).');
 
-app.listen(PORT, () => {
-  console.log(`MonCRM en écoute sur le port ${PORT}`);
-  gmail.pollNewEmails().catch((e) => console.error('Erreur de synchronisation Gmail (démarrage)', e));
-  scheduler.sendDueMessages().catch((e) => console.error('Erreur d\'envoi des messages programmés (démarrage)', e));
-});
+    setInterval(() => {
+      gmail.pollNewEmails().catch((e) => console.error('Erreur de synchronisation Gmail', e));
+    }, POLL_INTERVAL_MS);
+
+    setInterval(() => {
+      scheduler.sendDueMessages().catch((e) => console.error('Erreur d\'envoi des messages programmés', e));
+    }, SCHEDULE_CHECK_INTERVAL_MS);
+
+    app.listen(PORT, () => {
+      console.log(`MonCRM en écoute sur le port ${PORT}`);
+      gmail.pollNewEmails().catch((e) => console.error('Erreur de synchronisation Gmail (démarrage)', e));
+      scheduler.sendDueMessages().catch((e) => console.error('Erreur d\'envoi des messages programmés (démarrage)', e));
+    });
+  })
+  .catch((err) => {
+    console.error('Échec du chargement des données au démarrage :', err);
+    process.exit(1);
+  });

@@ -195,28 +195,51 @@ une.
    `https://xxxx.onrender.com/auth/google/callback`. Render redéploie
    automatiquement après un changement de variable.
 
-### Stockage persistant (fortement recommandé)
+### Stockage persistant — gratuit, via Upstash (recommandé)
 
 Par défaut, Render **efface vos données à chaque nouveau déploiement** (le
-disque du conteneur repart à zéro). Pour que vos contacts, messages et
-connexions Gmail/WhatsApp survivent à chaque mise à jour :
+disque du conteneur repart à zéro). Pour que vos contacts, messages,
+utilisateurs et connexions Gmail/WhatsApp survivent à chaque mise à jour
+**sans payer**, MonCRM peut stocker ses données sur **Upstash** — une petite
+base de données (Redis) externe à Render, avec un plan gratuit à vie
+largement suffisant pour un CRM personnel/petite structure.
 
-1. Dans votre service Render, onglet **Disks** → **Add Disk**.
-2. **Name** : `moncrm-data` (libre) — **Mount Path** : `/var/data` — **Size** :
-   1 Go suffit largement (quelques dizaines de centimes à ~1$/mois selon le
-   tarif Render en vigueur).
-3. Onglet **Environment** → ajoutez la variable :
+1. Allez sur https://upstash.com → **Sign Up** (gratuit — connexion possible
+   directement avec un compte Google/GitHub, aucune carte bancaire requise).
+2. Une fois connecté : **Create Database**.
+   - **Name** : `moncrm` (libre).
+   - **Type** : Regional (le plus simple).
+   - **Region** : choisissez la plus proche de vous (ex. un datacenter aux
+     États-Unis si vous êtes au Canada).
+   - **Create**.
+3. Sur la page de la base créée, section **REST API**, copiez :
+   - **`UPSTASH_REDIS_REST_URL`**
+   - **`UPSTASH_REDIS_REST_TOKEN`**
+4. Sur Render → votre service → **Environment** → ajoutez ces deux variables
+   avec les valeurs copiées :
 
    | Clé | Valeur |
    |---|---|
-   | `DATA_DIR` | `/var/data` |
+   | `UPSTASH_REDIS_REST_URL` | (étape 3) |
+   | `UPSTASH_REDIS_REST_TOKEN` | (étape 3) |
 
-4. **Save Changes** — Render redéploie, cette fois avec un stockage qui
-   persiste réellement entre les mises à jour.
+5. **Save Changes** — Render redéploie. Dans les journaux de démarrage
+   ("Logs" sur Render), vous devriez voir la ligne *"Stockage : Upstash
+   (persistant, survit aux redéploiements)"*.
+
+À partir de là, vos données ne sont plus jamais perdues lors d'une mise à
+jour — je pourrai déployer de nouvelles fonctionnalités sans que vous ayez à
+recréer votre compte ou vos contacts.
+
+> **Alternative payante** : Render propose aussi un vrai disque persistant
+> attaché au serveur (~1$/mois, onglet **Disks** → variable `DATA_DIR`).
+> Fonctionnellement équivalent à Upstash pour cet usage — inutile de faire
+> les deux, Upstash suffit et reste gratuit.
 
 ⚠️ Le plan gratuit de Render peut aussi mettre le service en veille après 15
 minutes d'inactivité (redémarrage en quelques secondes à la requête
 suivante) — sans rapport avec le stockage, juste un léger délai occasionnel.
+Le plan gratuit d'Upstash, lui, ne se met pas en veille.
 
 ---
 
